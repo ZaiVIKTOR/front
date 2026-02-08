@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Telegram Auth</title>
+    <script
+      src="https://telegram.org/js/telegram-widget.js?22"
+      data-telegram-login="your_bot_username"
+      data-size="large"
+      data-userpic="true"
+      data-radius="8"
+      data-request-access="write"
+    ></script>
+  </head>
+  <body>
+    <div id="auth-container">
+      <h1>Войдите через Telegram</h1>
+      <!-- Telegram Login Widget автоматически вставится сюда -->
+    </div>
+
+    <div id="user-info" style="display: none">
+      <h2>Добро пожаловать, <span id="username"></span>!</h2>
+      <p>Ваш Telegram ID: <span id="telegram-id"></span></p>
+      <button onclick="logout()">Выйти</button>
+    </div>
+
+    <script>
+      // Обработчик данных от Telegram
+      window.TelegramLogin = {
+        auth: async function (data) {
+          try {
+            // Отправляем данные на нашу апи
+            const response = await fetch(
+              "http://localhost:8000/auth/telegram",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(data),
+              }
+            );
+
+            if (!response.ok) {
+              throw new Error("Ошибка авторизации");
+            }
+
+            const result = await response.json();
+
+            // Сохраняем токен
+            localStorage.setItem("access_token", result.access_token);
+
+            // Получаем данные пользователя
+            await loadUserInfo();
+          } catch (error) {
+            console.error("Ошибка:", error);
+            alert("Не удалось авторизоваться: " + error.message);
+          }
+        },
+      };
+
+      async function loadUserInfo() {
+        const token = localStorage.getItem("access_token");
+        if (!token) return;
+
+        try {
+          const response = await fetch("http://localhost:8000/users/me", {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+
+          if (!response.ok) {
+            throw new Error("Не удалось загрузить данные");
+          }
+
+          const user = await response.json();
+
+          // Показываем информацию о пользователе
+          document.getElementById("username").textContent =
+            user.first_name + (user.last_name ? " " + user.last_name : "");
+          document.getElementById("telegram-id").textContent = user.telegram_id;
+
+          document.getElementById("auth-container").style.display = "none";
+          document.getElementById("user-info").style.display = "block";
+        } catch (error) {
+          console.error("Ошибка загрузки данных:", error);
+          localStorage.removeItem("access_token");
+        }
+      }
+
+      function logout() {
+        localStorage.removeItem("access_token");
+        document.getElementById("auth-container").style.display = "block";
+        document.getElementById("user-info").style.display = "none";
+      }
+
+      // Автозагрузка при наличии токена
+      if (localStorage.getItem("access_token")) {
+        loadUserInfo();
+      }
+    </script>
+  </body>
+</html>
